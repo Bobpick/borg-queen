@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.idea/
+*.zip
+.queen.pid
+queen_launch.log
+server.log
+borg_queen (1)/
