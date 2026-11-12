@@ -19,7 +19,7 @@ borg-queen
 
 Then open `http://localhost:8082`.
 
-`install.sh` copies the server to `~/.borg_queen`, creates the vault folders, and adds a `borg-queen` command.
+`install.sh` asks where Borg Queen should live. Press Enter to use `~/Documents/BorgQueen`. It also creates the vault folders and adds a `borg-queen` command.
 
 ## Vault location
 

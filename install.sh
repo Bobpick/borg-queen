@@ -32,12 +32,34 @@ echo -e "${CYAN}================================================================
 
 TARGET_USER="${SUDO_USER:-$USER}"
 TARGET_HOME=$(eval echo "~$TARGET_USER")
-APP_DIR="$TARGET_HOME/.borg_queen"
+DOCUMENTS_HOME="$TARGET_HOME/Documents/BorgQueen"
 SECOND_BRAIN_DIR="$TARGET_HOME/Documents/PATL/Lab_Second_brain"
 VAULT_DIR="$SECOND_BRAIN_DIR/wiki"
 INBOX_DIR="$SECOND_BRAIN_DIR/inbox"
 DEFAULT_PORT=8082
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+echo -e "\n${BLUE}[*] Where should Borg Queen live?${NC}"
+echo -e "    Press Enter to use ${CYAN}$DOCUMENTS_HOME${NC}"
+if [ -t 0 ]; then
+    read -r -p "    Live in ~/Documents/BorgQueen? [Y/n] " LIVE_ANSWER
+else
+    LIVE_ANSWER="Y"
+    echo -e "    ${YELLOW}No prompt available. Using ~/Documents/BorgQueen.${NC}"
+fi
+case "${LIVE_ANSWER:-Y}" in
+    n|N|no|NO)
+        read -r -p "    Path for Borg Queen: " CUSTOM_HOME
+        APP_DIR="${CUSTOM_HOME/#\~/$TARGET_HOME}"
+        if [ -z "$APP_DIR" ]; then
+            echo -e "${RED}[ERROR] A directory is required.${NC}"
+            exit 1
+        fi
+        ;;
+    *)
+        APP_DIR="$DOCUMENTS_HOME"
+        ;;
+esac
 
 echo -e "\n${BLUE}[*] Target Environment Configuration:${NC}"
 echo -e "    User:           $TARGET_USER"
@@ -121,65 +143,58 @@ cp "$ICON_SRC" "$TARGET_HOME/.local/share/icons/borg-queen.png" 2>/dev/null || t
 # B. CLI and App launcher script (~/.local/bin/borg-queen)
 BIN_DIR="$TARGET_HOME/.local/bin"
 mkdir -p "$BIN_DIR"
-cat << 'EOF' > "$BIN_DIR/borg-queen"
+cat > "$BIN_DIR/borg-queen" << EOF
 #!/usr/bin/env bash
-TARGET_PORT=${BORG_QUEEN_PORT:-8082}
-APP_DIR="$HOME/.borg_queen"
+TARGET_PORT=\${BORG_QUEEN_PORT:-8082}
+APP_DIR=$(printf '%q' "$APP_DIR")
 
 export OLLAMA_FLASH_ATTENTION=1
 export OLLAMA_NUM_PARALLEL=2
 export OLLAMA_KEEP_ALIVE=1h
 export OLLAMA_MAX_LOADED_MODELS=2
 export OLLAMA_MAX_QUEUE=4
-export BORG_QUEEN_PORT=$TARGET_PORT
+export BORG_QUEEN_PORT=\$TARGET_PORT
 
-# Check if --index flag passed
-if [ "$1" = "--index" ]; then
-    python3 "$APP_DIR/server.py" --index
+if [ "\$1" = "--index" ]; then
+    python3 "\$APP_DIR/server.py" --index
     exit 0
 fi
 
-# Preload reasoning core into VRAM/RAM: borg-queen --preload [model]
-if [ "$1" = "--preload" ]; then
-    python3 "$APP_DIR/server.py" --preload "${2:-cogito:32b}"
+if [ "\$1" = "--preload" ]; then
+    python3 "\$APP_DIR/server.py" --preload "\${2:-cogito:32b}"
     exit 0
 fi
 
-# If launched as app window (--app)
-if [ "$1" = "--app" ]; then
-    # Start server in background if not already active
-    if ! curl -s "http://localhost:$TARGET_PORT/api/status" &>/dev/null; then
-        nohup python3 "$APP_DIR/server.py" --port "$TARGET_PORT" > "$APP_DIR/server.log" 2>&1 &
-        # Wait up to 5 seconds for port to open
+if [ "\$1" = "--app" ]; then
+    if ! curl -s "http://localhost:\$TARGET_PORT/api/status" &>/dev/null; then
+        nohup python3 "\$APP_DIR/server.py" --port "\$TARGET_PORT" > "\$APP_DIR/server.log" 2>&1 &
         for i in {1..10}; do
-            if curl -s "http://localhost:$TARGET_PORT/api/status" &>/dev/null; then
+            if curl -s "http://localhost:\$TARGET_PORT/api/status" &>/dev/null; then
                 break
             fi
             sleep 0.5
         done
     fi
 
-    # Launch dedicated App Window
-    URL="http://localhost:$TARGET_PORT"
+    URL="http://localhost:\$TARGET_PORT"
     if command -v google-chrome &> /dev/null; then
-        google-chrome --app="$URL" --class=borg-queen --name="Borg Queen Control" &
+        google-chrome --app="\$URL" --class=borg-queen --name="Borg Queen Control" &
     elif command -v brave-browser &> /dev/null; then
-        brave-browser --app="$URL" &
+        brave-browser --app="\$URL" &
     elif command -v chromium-browser &> /dev/null; then
-        chromium-browser --app="$URL" &
+        chromium-browser --app="\$URL" &
     elif command -v chromium &> /dev/null; then
-        chromium --app="$URL" &
+        chromium --app="\$URL" &
     elif command -v microsoft-edge &> /dev/null; then
-        microsoft-edge --app="$URL" &
+        microsoft-edge --app="\$URL" &
     else
-        xdg-open "$URL" &
+        xdg-open "\$URL" &
     fi
     exit 0
 fi
 
-# Default: Run interactively in terminal
-cd "$APP_DIR"
-python3 "$APP_DIR/server.py" "$@"
+cd "\$APP_DIR"
+python3 "\$APP_DIR/server.py" "\$@"
 EOF
 chmod +x "$BIN_DIR/borg-queen"
 
